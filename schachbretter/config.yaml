@@ -1,6 +1,6 @@
 # Home-Assistant-Add-on-Konfiguration
 name: Schachbretter
-version: "0.1.0"
+version: "0.2.0"
 slug: schachbretter
 description: Schachbretter verwalten – ohne Schachlogik
 url: https://github.com/vikried/schach
@@ -19,3 +19,7 @@ ports:
   8099/tcp: null
 ports_description:
   8099/tcp: Web-Oberfläche (direkt, ohne Home-Assistant-Login)
+options:
+  admin_password: ""
+schema:
+  admin_password: password

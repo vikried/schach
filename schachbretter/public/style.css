@@ -156,3 +156,26 @@ button.danger:hover { border-color: #b3261e; color: #b3261e; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 12px 0 8px; }
 .hint { text-align: center; margin: 0; }
+
+/* ---------- Anmeldung ---------- */
+.list-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+main.login {
+  max-width: 360px;
+  margin-top: 12vh;
+}
+main.login form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.error {
+  color: #b3261e;
+  background: color-mix(in srgb, #b3261e 10%, transparent);
+  border-radius: 8px;
+  padding: 8px 12px;
+}

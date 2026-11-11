@@ -23,6 +23,7 @@ try {
 let board = null; // aktuell geöffnetes Brett
 let flipped = false;
 let boardEl = null;
+let canLogout = false;
 
 async function api(method, url, body) {
   const res = await fetch(url, {
@@ -30,6 +31,10 @@ async function api(method, url, body) {
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) {
+    location.href = 'login';
+    throw new Error('Anmeldung erforderlich');
+  }
   if (!res.ok) throw new Error(`${method} ${url}: ${res.status}`);
   return res.status === 204 ? null : res.json();
 }
@@ -77,8 +82,11 @@ async function showList() {
         del));
   }
 
+  const header = h('div', { className: 'list-header' }, h('h1', { textContent: 'Schachbretter' }));
+  if (canLogout) header.append(h('a', { href: 'logout', className: 'muted', textContent: 'Abmelden' }));
+
   app.replaceChildren(
-    h('h1', { textContent: 'Schachbretter' }),
+    header,
     form,
     boards.length ? list : h('p', { className: 'muted', textContent: 'Noch keine Bretter. Lege oben dein erstes an.' }));
 }
@@ -240,7 +248,10 @@ function route() {
   else showList();
 }
 window.addEventListener('hashchange', route);
-route();
+api('GET', 'api/session')
+  .then((s) => { canLogout = s.canLogout; })
+  .catch(() => {})
+  .finally(route);
 
 const events = new EventSource('api/events');
 events.onmessage = (e) => {
@@ -256,6 +267,10 @@ events.onmessage = (e) => {
 };
 // Nach einem Verbindungsabbruch verpasste Änderungen nachholen
 let connectedOnce = false;
+// Abgelaufene Sitzung: EventSource meldet nur einen Fehler, also kurz nachfragen
+events.onerror = () => {
+  fetch('api/session').then((r) => r.status === 401 && (location.href = 'login')).catch(() => {});
+};
 events.onopen = () => {
   if (connectedOnce) route();
   connectedOnce = true;
