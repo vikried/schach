@@ -1,0 +1,21 @@
+# Home-Assistant-Add-on-Konfiguration
+name: Schachbretter
+version: "0.1.0"
+slug: schachbretter
+description: Schachbretter verwalten – ohne Schachlogik
+url: https://github.com/vikried/schach
+arch:
+  - amd64
+  - aarch64
+  - armv7
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:chess-knight
+panel_title: Schach
+# Optionaler direkter Port (z. B. für Tests im LAN). Standardmäßig aus –
+# der Cloudflare-Tunnel erreicht das Add-on über das interne Netz.
+ports:
+  8099/tcp: null
+ports_description:
+  8099/tcp: Web-Oberfläche (direkt, ohne Home-Assistant-Login)

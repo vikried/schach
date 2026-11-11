@@ -1,0 +1,158 @@
+:root {
+  --board: min(100vw - 24px, 100vh - 290px, 640px);
+  --sq: calc(var(--board) / 8);
+  --bg: #f4f1ea;
+  --fg: #26221c;
+  --muted: #6f675b;
+  --card: #fff;
+  --line: #d9d2c4;
+  --light: #ecd9b5;
+  --dark: #ae8762;
+  --accent: #4a6b3c;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1d1b18;
+    --fg: #ece7dd;
+    --muted: #a39a8b;
+    --card: #2a2723;
+    --line: #423d35;
+    --accent: #8fb37c;
+  }
+}
+
+/* Farbdesigns des Bretts (Standard „Holz“ steht in :root) */
+:root[data-design="gruen"] { --light: #eeeed2; --dark: #769656; }
+:root[data-design="blau"] { --light: #dee3e6; --dark: #6f8fae; }
+:root[data-design="grau"] { --light: #dcdcdc; --dark: #8a8a8a; }
+:root[data-design="lila"] { --light: #e8dff0; --dark: #8b6fa8; }
+:root[data-design="koralle"] { --light: #f6dccb; --dark: #c9705a; }
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.4 system-ui, "Segoe UI", sans-serif;
+}
+
+main {
+  max-width: 664px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+h1 {
+  margin: 4px 0 12px;
+  font-size: 1.4rem;
+}
+
+button, input, select {
+  font: inherit;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger:hover { border-color: #b3261e; color: #b3261e; }
+
+.muted { color: var(--muted); font-size: 0.875rem; }
+
+/* Liste */
+.new-board { display: flex; gap: 8px; margin-bottom: 16px; }
+.new-board input { flex: 1; min-width: 0; }
+
+.board-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.board-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 8px 4px 0;
+}
+.board-list a {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+.board-list .name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+
+/* Brett */
+.topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.topbar h1 { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar a { color: inherit; text-decoration: none; padding: 8px 4px; }
+
+.board {
+  width: var(--board);
+  height: var(--board);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  border-radius: 6px;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.sq { position: relative; display: grid; place-items: center; background: var(--dark); }
+.sq.light { background: var(--light); }
+.sq.over { box-shadow: inset 0 0 0 4px var(--accent); }
+.sq .coord {
+  position: absolute;
+  font-size: calc(var(--sq) * 0.2);
+  line-height: 1;
+  color: var(--light);
+  pointer-events: none;
+}
+.sq.light .coord { color: var(--dark); }
+.sq .rank { top: 3px; left: 3px; }
+.sq .file { bottom: 3px; right: 3px; }
+
+.piece {
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Apple Symbols", "DejaVu Sans", sans-serif;
+  font-size: calc(var(--sq) * 0.78);
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  paint-order: stroke fill;
+}
+.piece.w { color: #fff; -webkit-text-stroke: 3px #26221c; }
+.piece.b { color: #26221c; -webkit-text-stroke: 2px #f4f1ea; }
+.piece.dragging { opacity: 0.25; }
+.piece.ghost {
+  position: fixed;
+  z-index: 10;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(1.15);
+  cursor: grabbing;
+}
+
+.palette {
+  width: var(--board);
+  margin: 10px auto 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  justify-items: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 0;
+}
+.palette .piece { font-size: calc(var(--sq) * 0.62); padding: 2px 0; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 12px 0 8px; }
+.hint { text-align: center; margin: 0; }
