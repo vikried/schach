@@ -39,6 +39,25 @@ async function api(method, url, body) {
   return res.status === 204 ? null : res.json();
 }
 
+// iOS (WebKit) malt Inhalte im Home-Assistant-iframe manchmal nicht neu, bis z. B. das
+// HA-Menü aufgeht. Ein kurzer Transform zwingt den Browser zum Neuzeichnen.
+function repaint() {
+  requestAnimationFrame(() => {
+    app.style.transform = 'translateZ(0)';
+    requestAnimationFrame(() => {
+      app.style.transform = '';
+    });
+  });
+}
+
+function render(...nodes) {
+  app.replaceChildren(...nodes);
+  repaint();
+}
+
+for (const ev of ['pageshow', 'resize', 'orientationchange']) window.addEventListener(ev, repaint);
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && repaint());
+
 function h(tag, props = {}, ...children) {
   const el = Object.assign(document.createElement(tag), props);
   el.append(...children);
@@ -85,7 +104,7 @@ async function showList() {
   const header = h('div', { className: 'list-header' }, h('h1', { textContent: 'Schachbretter' }));
   if (canLogout) header.append(h('a', { href: 'logout', className: 'muted', textContent: 'Abmelden' }));
 
-  app.replaceChildren(
+  render(
     header,
     form,
     boards.length ? list : h('p', { className: 'muted', textContent: 'Noch keine Bretter. Lege oben dein erstes an.' }));
@@ -141,7 +160,7 @@ async function showBoard(id) {
   design.value = document.documentElement.dataset.design;
   design.onchange = () => setDesign(design.value, true);
 
-  app.replaceChildren(
+  render(
     h('div', { className: 'topbar' }, h('a', { href: '#/', textContent: '← Bretter' }), title),
     boardEl,
     palette,
@@ -171,6 +190,7 @@ function renderBoard() {
     squares.push(sq);
   }
   boardEl.replaceChildren(...squares);
+  repaint();
 }
 
 function applyLocal(op) {
