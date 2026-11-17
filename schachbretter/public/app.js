@@ -169,6 +169,21 @@ async function showBoard(id) {
   clear.onclick = () => confirm('Alle Figuren vom Brett entfernen?') && sendOp({ type: 'clear' });
   const done = h('button', { className: 'primary', textContent: 'Fertig – weiterspielen' });
   done.onclick = () => sendOp({ type: 'edit', on: false });
+  // Rochaderechte (nur wählbar, wenn König und Turm auf ihren Ausgangsfeldern stehen)
+  const castleGroup = h('div', { className: 'segmented castling', role: 'group', ariaLabel: 'Rochade erlaubt' },
+    h('span', { className: 'muted', textContent: 'Rochade erlaubt:' }));
+  for (const [right, label] of [['K', 'Weiß O-O'], ['Q', 'Weiß O-O-O'], ['k', 'Schwarz O-O'], ['q', 'Schwarz O-O-O']]) {
+    const btn = h('button', { textContent: label });
+    btn.dataset.right = right;
+    btn.onclick = () => {
+      const has = board.castling.includes(right);
+      const rights = has ? board.castling.replace(right, '') : board.castling + right;
+      sendOp({ type: 'castling', rights });
+    };
+    castleGroup.append(btn);
+  }
+  const castleBar = h('div', { className: 'actions edit-only' }, castleGroup);
+
   const editBar = h('div', { className: 'actions edit-only' },
     h('div', { className: 'segmented', role: 'group', ariaLabel: 'Am Zug' }, h('span', { className: 'muted', textContent: 'Am Zug:' }), turnW, turnB),
     clear, done);
@@ -200,6 +215,7 @@ async function showBoard(id) {
     error,
     palette,
     editBar,
+    castleBar,
     h('div', { className: 'actions' }, newGame, edit, flip, design),
     h('p', { className: 'hint muted' }));
   renderBoard();
@@ -259,6 +275,13 @@ function renderBoard() {
   for (const el of app.querySelectorAll('.play-only')) el.hidden = board.edit;
   app.querySelector('.turn-w').setAttribute('aria-pressed', board.turn === 'w');
   app.querySelector('.turn-b').setAttribute('aria-pressed', board.turn === 'b');
+  const possible = Chess.deriveCastling(board.squares);
+  for (const btn of app.querySelectorAll('.castling button')) {
+    const right = btn.dataset.right;
+    btn.disabled = !possible.includes(right);
+    btn.setAttribute('aria-pressed', possible.includes(right) && board.castling.includes(right));
+    btn.title = btn.disabled ? 'König oder Turm steht nicht auf dem Ausgangsfeld' : '';
+  }
   app.querySelector('.hint').textContent = board.edit
     ? 'Figuren frei ziehen · aus der Leiste aufs Brett ziehen zum Hinzufügen · vom Brett herunterziehen zum Entfernen'
     : 'Figur antippen oder ziehen – erlaubte Felder werden markiert';

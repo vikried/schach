@@ -1,6 +1,6 @@
 {
   "name": "schachbretter",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Schachpartien nach den Regeln spielen und Stellungen verwalten",
   "private": true,
   "scripts": {

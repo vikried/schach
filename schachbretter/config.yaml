@@ -1,6 +1,6 @@
 # Home-Assistant-Add-on-Konfiguration
 name: Schachbretter
-version: "0.4.0"
+version: "0.4.1"
 slug: schachbretter
 description: Schachpartien nach den Regeln spielen und Stellungen verwalten
 url: https://github.com/vikried/schach

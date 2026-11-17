@@ -6,7 +6,7 @@ Schachpartien nach den Regeln spielen und mehrere Bretter verwalten. Änderungen
 - **Bedienung**: Figur ziehen oder antippen – erlaubte Felder werden markiert, der letzte Zug ist hervorgehoben.
 - **Zurück / Vor** (auch mit ← →): jeder Schritt pro Brett lässt sich rückgängig machen. Der Verlauf liegt auf dem Server und gilt für alle Geräte.
 - **Letzter Zug in Notation** unter dem Brett, z. B. `12. ♘xe5+`, `O-O`, `e8=♕#`.
-- **Stellung bearbeiten**: Figuren frei setzen und entfernen, festlegen, wer am Zug ist. Bei „Fertig“ wird geprüft, ob die Stellung spielbar ist (je ein König, keine Bauern auf Grundreihe, der Spieler, der nicht am Zug ist, steht nicht im Schach).
+- **Stellung bearbeiten**: Figuren frei setzen und entfernen, festlegen, wer am Zug ist und welche Rochaden noch erlaubt sind. Bei „Fertig“ wird geprüft, ob die Stellung spielbar ist (je ein König, keine Bauern auf Grundreihe, der Spieler, der nicht am Zug ist, steht nicht im Schach).
 
 ## Installation in Home Assistant
 

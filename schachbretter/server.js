@@ -223,6 +223,15 @@ function applyOp(board, op) {
       if (!board.edit) return 'Das Brett lässt sich nur im Bearbeiten-Modus leeren.';
       pushEntry(board, entryOf({ ...cur, squares: new Array(64).fill(null), castling: 'KQkq', ep: null, half: 0, full: 1 }, { info: 'Brett geleert' }));
       return null;
+    case 'castling': {
+      if (!board.edit) return 'Rochaderechte lassen sich nur im Bearbeiten-Modus ändern.';
+      if (typeof op.rights !== 'string' || !/^[KQkq]*$/.test(op.rights)) return 'Ungültige Rochaderechte.';
+      // Nur Rechte, zu denen König und Turm auf ihren Ausgangsfeldern stehen
+      const castling = Chess.deriveCastling(cur.squares, op.rights);
+      if (castling === cur.castling) return null;
+      pushEntry(board, entryOf({ ...cur, castling }, { info: 'Rochaderechte geändert' }));
+      return null;
+    }
     case 'turn':
       if (!board.edit) return 'Wer am Zug ist, lässt sich nur im Bearbeiten-Modus ändern.';
       if (op.color !== 'w' && op.color !== 'b') return 'Ungültige Farbe.';

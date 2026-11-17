@@ -254,6 +254,8 @@ main.login form {
 .board.editing { box-shadow: 0 0 0 3px var(--accent); }
 .segmented { display: inline-flex; align-items: center; gap: 4px; }
 .segmented .muted { margin-right: 4px; font-size: 1rem; }
+.segmented.castling { flex-wrap: wrap; justify-content: center; }
+.segmented button:disabled { opacity: 0.4; cursor: default; }
 .segmented button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Bauernumwandlung */
