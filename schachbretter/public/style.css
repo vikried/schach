@@ -200,7 +200,88 @@ main.login form {
   white-space: nowrap;
 }
 .last-move strong { font-size: 1.2rem; letter-spacing: 0.01em; }
-@media (max-width: 380px) {
+@media (max-width: 520px) {
   .last-move > .muted:first-child:not(:only-child) { display: none; } /* „Letzter Zug“ ausblenden, nur der Zug bleibt */
-  .movebar button { padding: 8px; }
+  .movebar button { padding: 8px 14px; }
+  .movebar .lbl { display: none; } /* nur Pfeile */
 }
+
+/* ---------- Spielmodus: Markierungen ---------- */
+[hidden] { display: none !important; }
+
+.board:not(.editing) .piece { cursor: default; }
+.board:not(.editing) .sq.movable .piece { cursor: grab; }
+.sq.target, .sq.capture { cursor: pointer; }
+
+.sq.last { background-image: linear-gradient(rgb(255 210 0 / 0.36), rgb(255 210 0 / 0.36)); }
+.sq.sel { background-image: linear-gradient(rgb(255 210 0 / 0.6), rgb(255 210 0 / 0.6)); }
+.sq.check { background-image: radial-gradient(circle, rgb(230 30 30 / 0.85) 0%, rgb(230 30 30 / 0.45) 45%, transparent 75%); }
+
+.sq.target::after,
+.sq.capture::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+}
+.sq.target::after {
+  width: 30%;
+  height: 30%;
+  background: rgb(20 20 20 / 0.28);
+}
+.sq.capture::after {
+  inset: 4%;
+  border: calc(var(--sq) * 0.08) solid rgb(20 20 20 / 0.28);
+}
+
+/* Spielstatus unter dem Brett */
+.status {
+  width: var(--board);
+  margin: 8px auto 0;
+  text-align: center;
+  font-weight: 600;
+}
+.status.check { color: #c62828; }
+.status.over {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.board + .movebar + .status + .error { width: var(--board); margin: 8px auto 0; text-align: center; }
+
+/* Bearbeiten-Modus */
+.board.editing { box-shadow: 0 0 0 3px var(--accent); }
+.segmented { display: inline-flex; align-items: center; gap: 4px; }
+.segmented .muted { margin-right: 4px; font-size: 1rem; }
+.segmented button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Bauernumwandlung */
+.promo {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.45);
+}
+.promo-box {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px 16px 16px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+}
+.promo-box p { margin: 0 0 8px; font-weight: 600; }
+.promo-choices { display: flex; gap: 8px; }
+.promo-choices button {
+  width: calc(var(--sq) * 1.1);
+  height: calc(var(--sq) * 1.1);
+  min-width: 56px;
+  min-height: 56px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--light);
+}
+.promo-choices .piece { cursor: pointer; }

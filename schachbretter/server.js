@@ -4,7 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { describe } = require('./notation');
+const Chess = require('./public/chess');
 
 const PORT = Number(process.env.PORT) || 8099;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -22,19 +22,6 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
 };
-
-// Feld 0 = a8, Feld 63 = h1
-function startPosition() {
-  const back = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
-  const sq = new Array(64).fill(null);
-  for (let i = 0; i < 8; i++) {
-    sq[i] = 'b' + back[i];
-    sq[8 + i] = 'bP';
-    sq[48 + i] = 'wP';
-    sq[56 + i] = 'w' + back[i];
-  }
-  return sq;
-}
 
 let boards = [];
 try {
@@ -59,43 +46,95 @@ setInterval(() => {
   for (const res of clients) res.write(': ping\n\n');
 }, 25000).unref();
 
-// Was Clients sehen: aktuelle Stellung plus Infos zum Verlauf (der Verlauf selbst bleibt auf dem Server)
-function view(board) {
+const COLOR_NAME = { w: 'Weiß', b: 'Schwarz' };
+
+// Verlaufseintrag = Spielzustand (Stellung, wer am Zug ist, Rochaderechte, en passant, Zähler)
+// plus Notation des Zugs, der dorthin geführt hat.
+function entryOf(state, extra = {}) {
+  const { squares, turn, castling, ep, half, full } = state;
+  return { squares, turn, castling, ep, half, full, note: null, info: null, last: null, ...extra };
+}
+
+function gameStatus(board) {
   const entry = board.history[board.cursor];
+  if (board.edit) return { text: 'Stellung bearbeiten', over: false, checkSquare: null };
+  const st = Chess.status(entry);
+  const side = COLOR_NAME[entry.turn];
+  if (st.mate) return { text: `Schachmatt – ${COLOR_NAME[Chess.other(entry.turn)]} gewinnt`, over: true, checkSquare: st.checkSquare };
+  if (st.stalemate) return { text: 'Patt – Remis', over: true, checkSquare: null };
+  if (st.insufficient) return { text: 'Remis – keiner kann mehr mattsetzen', over: true, checkSquare: st.checkSquare };
+  let text = st.check ? `${side} am Zug – Schach!` : `${side} am Zug`;
+  // Stellungswiederholung und 50-Züge-Regel: Remis kann beansprucht werden
+  const key = Chess.positionKey(entry);
+  let repeats = 0;
+  for (let i = 0; i <= board.cursor; i++) {
+    if (board.history[i].turn === entry.turn && Chess.positionKey(board.history[i]) === key) repeats++;
+  }
+  if (repeats >= 3) text += ' · dreifache Wiederholung, Remis möglich';
+  else if (entry.half >= 100) text += ' · 50-Züge-Regel, Remis möglich';
+  return { text, over: false, checkSquare: st.checkSquare };
+}
+
+// Was Clients sehen: aktueller Zustand plus Infos zum Verlauf (der Verlauf selbst bleibt auf dem Server)
+function view(board) {
+  const e = board.history[board.cursor];
   return {
     id: board.id,
     name: board.name,
     updated: board.updated,
-    squares: entry.squares,
-    note: entry.note,
-    info: entry.info || null,
+    squares: e.squares,
+    turn: e.turn,
+    castling: e.castling,
+    ep: e.ep,
+    half: e.half,
+    full: e.full,
+    note: e.note,
+    info: e.info || null,
+    last: e.last || null,
+    edit: Boolean(board.edit),
+    status: gameStatus(board),
     canUndo: board.cursor > 0,
     canRedo: board.cursor < board.history.length - 1,
   };
 }
 
-// Ältere Bretter (ohne Verlauf) bekommen einen Startpunkt
-function ensureHistory(board) {
+// Ältere Bretter (ohne Verlauf oder ohne Spielzustand) auf das neue Format bringen
+function migrate(board) {
   if (!Array.isArray(board.history) || !board.history.length) {
-    board.history = [{ squares: board.squares, note: null, move: null, next: 1 }];
+    board.history = [{ squares: board.squares }];
     board.cursor = 0;
   }
+  let wasOld = false;
+  for (const e of board.history) {
+    if (e.turn) continue;
+    wasOld = true;
+    e.turn = 'w';
+    e.castling = Chess.deriveCastling(e.squares);
+    e.ep = null;
+    e.half = 0;
+    e.full = e.next || 1;
+    e.note = e.note || null;
+    e.info = e.info || null;
+    e.last = null;
+    delete e.move;
+    delete e.next;
+  }
   board.cursor = Math.min(Math.max(0, board.cursor | 0), board.history.length - 1);
-  board.squares = board.history[board.cursor].squares;
+  const current = board.history[board.cursor];
+  // Bei frei aufgestellten Brettern ist unklar, wer am Zug ist → erst im Bearbeiten-Modus bestätigen
+  if (wasOld && typeof board.edit !== 'boolean') {
+    const isStart = current.squares.every((p, i) => p === Chess.startSquares()[i]);
+    board.edit = !isStart;
+  }
+  board.edit = Boolean(board.edit);
+  board.squares = current.squares;
   return board;
 }
-boards.forEach(ensureHistory);
+boards.forEach(migrate);
 
 function newBoard(name) {
-  const squares = startPosition();
-  return {
-    id: crypto.randomUUID(),
-    name,
-    squares,
-    history: [{ squares, note: null, move: null, next: 1 }],
-    cursor: 0,
-    updated: Date.now(),
-  };
+  const entry = entryOf(Chess.startState());
+  return { id: crypto.randomUUID(), name, squares: entry.squares, history: [entry], cursor: 0, edit: false, updated: Date.now() };
 }
 
 function touch(board) {
@@ -108,68 +147,91 @@ function touch(board) {
 const isSquare = (n) => Number.isInteger(n) && n >= 0 && n < 64;
 const cleanName = (name) => (typeof name === 'string' ? name.trim().slice(0, 60) : '');
 
-// Liefert die neue Stellung oder null bei ungültiger Operation
-function nextSquares(current, op) {
-  const sq = current.slice();
-  switch (op.type) {
-    case 'move':
-      if (!isSquare(op.from) || !isSquare(op.to)) return null;
-      if (op.from !== op.to && sq[op.from]) {
-        sq[op.to] = sq[op.from];
-        sq[op.from] = null;
-      }
-      return sq;
-    case 'set':
-      if (!isSquare(op.square) || !(op.piece === null || PIECES.has(op.piece))) return null;
-      sq[op.square] = op.piece;
-      return sq;
-    case 'reset':
-      return startPosition();
-    case 'clear':
-      return new Array(64).fill(null);
-    default:
-      return null;
-  }
-}
-
-// Gibt false bei ungültiger Operation zurück
-function applyOp(board, op) {
-  if (op.type === 'undo') {
-    if (board.cursor > 0) board.cursor--;
-    return true;
-  }
-  if (op.type === 'redo') {
-    if (board.cursor < board.history.length - 1) board.cursor++;
-    return true;
-  }
-
-  const prev = board.history[board.cursor];
-  const squares = nextSquares(prev.squares, op);
-  if (!squares) return false;
-  if (squares.every((p, i) => p === prev.squares[i])) return true; // nichts verändert
-
-  const { note, move, merge, next } = describe(prev, op, squares);
-  const entry = { squares, note, move, next };
-  if (!note) {
-    // Kein Schachzug – kurze Beschreibung, damit klar ist, was „Zurück“ rückgängig macht
-    if (op.type === 'reset') entry.info = 'Startaufstellung';
-    else if (op.type === 'clear') entry.info = 'Brett geleert';
-    else if (op.type === 'set') entry.info = op.piece ? 'Figur hinzugefügt' : 'Figur entfernt';
-  }
+function pushEntry(board, entry) {
   board.history.length = board.cursor + 1; // „Vor“-Schritte verfallen bei neuem Zug
-  if (merge && board.cursor > 0) {
-    // Zweiter Teil eines Zugs (Rochade, Umwandlung, en passant): ein Zurück nimmt beides zurück
-    board.history[board.cursor] = entry;
-  } else {
-    board.history.push(entry);
-    board.cursor++;
-  }
+  board.history.push(entry);
+  board.cursor++;
   if (board.history.length > HISTORY_LIMIT) {
     const drop = board.history.length - HISTORY_LIMIT;
     board.history.splice(0, drop);
     board.cursor -= drop;
   }
-  return true;
+}
+
+// Gibt null bei Erfolg zurück, sonst eine Fehlermeldung
+function applyOp(board, op) {
+  const cur = board.history[board.cursor];
+
+  switch (op.type) {
+    case 'undo':
+      if (board.cursor > 0) board.cursor--;
+      return null;
+    case 'redo':
+      if (board.cursor < board.history.length - 1) board.cursor++;
+      return null;
+
+    case 'reset': // Neue Partie
+      board.edit = false;
+      pushEntry(board, entryOf(Chess.startState(), { info: 'Neue Partie' }));
+      return null;
+
+    case 'edit': {
+      if (op.on) {
+        board.edit = true;
+        return null;
+      }
+      // Bearbeiten beenden: Stellung muss spielbar sein
+      const state = { ...cur, castling: Chess.deriveCastling(cur.squares, cur.castling), ep: null };
+      const error = Chess.validate(state);
+      if (error) return error;
+      board.edit = false;
+      if (state.castling !== cur.castling || cur.ep !== null) pushEntry(board, entryOf(state, { info: 'Stellung übernommen' }));
+      return null;
+    }
+
+    case 'move': {
+      if (!isSquare(op.from) || !isSquare(op.to) || op.from === op.to) return 'Ungültiger Zug.';
+      if (board.edit) {
+        if (!cur.squares[op.from]) return 'Dort steht keine Figur.';
+        const squares = cur.squares.slice();
+        squares[op.to] = squares[op.from];
+        squares[op.from] = null;
+        pushEntry(board, entryOf({ ...cur, squares }, { info: 'Figur versetzt', last: { from: op.from, to: op.to } }));
+        return null;
+      }
+      const st = Chess.status(cur);
+      if (st.mate || st.stalemate || st.insufficient) return 'Die Partie ist beendet.';
+      const move = st.moves.find((m) => m.from === op.from && m.to === op.to && (m.promo || null) === (op.promo || null));
+      if (!move) return 'Dieser Zug ist nach den Regeln nicht erlaubt.';
+      const label = cur.turn === 'w' ? `${cur.full}. ` : `${cur.full}… `;
+      const note = label + Chess.san(cur, move);
+      pushEntry(board, entryOf(Chess.applyMove(cur, move), { note, last: { from: op.from, to: op.to } }));
+      return null;
+    }
+
+    // Ab hier nur im Bearbeiten-Modus
+    case 'set': {
+      if (!board.edit) return 'Figuren lassen sich nur im Bearbeiten-Modus setzen.';
+      if (!isSquare(op.square) || !(op.piece === null || PIECES.has(op.piece))) return 'Ungültige Figur.';
+      if (cur.squares[op.square] === op.piece) return null;
+      const squares = cur.squares.slice();
+      squares[op.square] = op.piece;
+      pushEntry(board, entryOf({ ...cur, squares }, { info: op.piece ? 'Figur hinzugefügt' : 'Figur entfernt' }));
+      return null;
+    }
+    case 'clear':
+      if (!board.edit) return 'Das Brett lässt sich nur im Bearbeiten-Modus leeren.';
+      pushEntry(board, entryOf({ ...cur, squares: new Array(64).fill(null), castling: 'KQkq', ep: null, half: 0, full: 1 }, { info: 'Brett geleert' }));
+      return null;
+    case 'turn':
+      if (!board.edit) return 'Wer am Zug ist, lässt sich nur im Bearbeiten-Modus ändern.';
+      if (op.color !== 'w' && op.color !== 'b') return 'Ungültige Farbe.';
+      if (cur.turn === op.color) return null;
+      pushEntry(board, entryOf({ ...cur, turn: op.color, ep: null }, { info: `${COLOR_NAME[op.color]} am Zug` }));
+      return null;
+    default:
+      return 'Unbekannte Aktion.';
+  }
 }
 
 function readJson(req) {
@@ -254,7 +316,8 @@ async function handleApi(req, res, parts) {
   }
 
   if (parts.length === 3 && parts[2] === 'ops' && method === 'POST') {
-    if (!applyOp(board, await readJson(req))) return json(res, 400, { error: 'invalid op' });
+    const error = applyOp(board, await readJson(req));
+    if (error) return json(res, 400, { error });
     touch(board);
     return json(res, 200, view(board));
   }

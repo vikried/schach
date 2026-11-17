@@ -1,9 +1,12 @@
 # Schachbretter – Home-Assistant-Add-on
 
-Schachbretter verwalten und Stellungen festhalten. Figuren lassen sich frei ziehen; Änderungen werden live an alle offenen Browser verteilt.
+Schachpartien nach den Regeln spielen und mehrere Bretter verwalten. Änderungen werden live an alle offenen Browser verteilt.
 
-- **Zurück / Vor** (auch mit ← →): jeder Schritt pro Brett lässt sich rückgängig machen – auch „Brett leeren“ oder „Startaufstellung“. Der Verlauf liegt auf dem Server und gilt für alle Geräte.
-- **Letzter Zug in Notation** unter dem Brett, z. B. `12. ♘xe5+`, inkl. Rochade (`O-O`, egal ob König oder Turm zuerst), Umwandlung (`e8=♕`: Bauer auf die letzte Reihe ziehen, dann die neue Figur darauf setzen), en passant (schräg ziehen, dann geschlagenen Bauern entfernen), Schach `+` und Matt `#`.
+- **Nur regelkonforme Züge**: abwechselnd Weiß/Schwarz, Rochade (König zwei Felder ziehen), en passant, Bauernumwandlung mit Figurenauswahl. Schach, Matt, Patt und Remis durch zu wenig Material werden erkannt; dreifache Wiederholung und 50-Züge-Regel werden angezeigt. Der Server prüft jeden Zug.
+- **Bedienung**: Figur ziehen oder antippen – erlaubte Felder werden markiert, der letzte Zug ist hervorgehoben.
+- **Zurück / Vor** (auch mit ← →): jeder Schritt pro Brett lässt sich rückgängig machen. Der Verlauf liegt auf dem Server und gilt für alle Geräte.
+- **Letzter Zug in Notation** unter dem Brett, z. B. `12. ♘xe5+`, `O-O`, `e8=♕#`.
+- **Stellung bearbeiten**: Figuren frei setzen und entfernen, festlegen, wer am Zug ist. Bei „Fertig“ wird geprüft, ob die Stellung spielbar ist (je ein König, keine Bauern auf Grundreihe, der Spieler, der nicht am Zug ist, steht nicht im Schach).
 
 ## Installation in Home Assistant
 
