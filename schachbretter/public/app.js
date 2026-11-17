@@ -133,6 +133,12 @@ async function showBoard(id) {
 
   boardEl = h('div', { className: 'board' });
 
+  const undo = h('button', { className: 'undo', textContent: '◀ Zurück', title: 'Letzten Schritt rückgängig (←)' });
+  undo.onclick = () => sendHistory('undo');
+  const redo = h('button', { className: 'redo', textContent: 'Vor ▶', title: 'Schritt wiederherstellen (→)' });
+  redo.onclick = () => sendHistory('redo');
+  const moveBar = h('div', { className: 'movebar' }, undo, h('div', { className: 'last-move', ariaLive: 'polite' }), redo);
+
   const palette = h('div', { className: 'palette' });
   for (const color of ['w', 'b']) {
     for (const type of PALETTE) {
@@ -163,6 +169,7 @@ async function showBoard(id) {
   render(
     h('div', { className: 'topbar' }, h('a', { href: '#/', textContent: '← Bretter' }), title),
     boardEl,
+    moveBar,
     palette,
     h('div', { className: 'actions' }, reset, clear, flip, design),
     h('p', { className: 'hint muted', textContent: 'Figuren ziehen zum Bewegen · aus der Leiste aufs Brett ziehen zum Hinzufügen · vom Brett herunterziehen zum Entfernen' }));
@@ -190,8 +197,39 @@ function renderBoard() {
     squares.push(sq);
   }
   boardEl.replaceChildren(...squares);
+
+  // Letzter Zug und Zurück/Vor
+  const lastMove = app.querySelector('.last-move');
+  if (board.note) {
+    lastMove.replaceChildren(h('span', { className: 'muted', textContent: 'Letzter Zug ' }), h('strong', { textContent: board.note }));
+  } else {
+    lastMove.replaceChildren(h('span', { className: 'muted', textContent: board.info || (board.canUndo ? '' : 'Noch kein Zug') }));
+  }
+  app.querySelector('.movebar .undo').disabled = !board.canUndo;
+  app.querySelector('.movebar .redo').disabled = !board.canRedo;
   repaint();
 }
+
+async function sendHistory(type) {
+  if (!board) return;
+  const id = board.id;
+  try {
+    const updated = await api('POST', `api/boards/${id}/ops`, { type });
+    if (board && board.id === id) {
+      board = updated;
+      renderBoard();
+    }
+  } catch {
+    if (board && board.id === id) showBoard(id);
+  }
+}
+
+// Pfeiltasten ← → für Zurück/Vor (nicht beim Tippen)
+window.addEventListener('keydown', (e) => {
+  if (!board || e.target.closest?.('input, select, textarea') || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.key === 'ArrowLeft' && board.canUndo) sendHistory('undo');
+  else if (e.key === 'ArrowRight' && board.canRedo) sendHistory('redo');
+});
 
 function applyLocal(op) {
   const sq = board.squares;
@@ -208,7 +246,11 @@ async function sendOp(op) {
   applyLocal(op);
   renderBoard();
   try {
-    await api('POST', `api/boards/${id}/ops`, op);
+    const updated = await api('POST', `api/boards/${id}/ops`, op);
+    if (board && board.id === id) {
+      board = updated;
+      renderBoard();
+    }
   } catch {
     if (board && board.id === id) showBoard(id); // Stand vom Server neu laden
   }

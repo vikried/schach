@@ -4,11 +4,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { describe } = require('./notation');
 
 const PORT = Number(process.env.PORT) || 8099;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'boards.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const HISTORY_LIMIT = 500; // gespeicherte Schritte pro Brett für Zurück/Vor
 const SESSION_DAYS = 30;
 // Home-Assistant-Ingress kommt immer von dieser Adresse; dort ist der Nutzer schon bei HA angemeldet
 const INGRESS_IP = '172.30.32.2';
@@ -57,37 +59,117 @@ setInterval(() => {
   for (const res of clients) res.write(': ping\n\n');
 }, 25000).unref();
 
+// Was Clients sehen: aktuelle Stellung plus Infos zum Verlauf (der Verlauf selbst bleibt auf dem Server)
+function view(board) {
+  const entry = board.history[board.cursor];
+  return {
+    id: board.id,
+    name: board.name,
+    updated: board.updated,
+    squares: entry.squares,
+    note: entry.note,
+    info: entry.info || null,
+    canUndo: board.cursor > 0,
+    canRedo: board.cursor < board.history.length - 1,
+  };
+}
+
+// Ältere Bretter (ohne Verlauf) bekommen einen Startpunkt
+function ensureHistory(board) {
+  if (!Array.isArray(board.history) || !board.history.length) {
+    board.history = [{ squares: board.squares, note: null, move: null, next: 1 }];
+    board.cursor = 0;
+  }
+  board.cursor = Math.min(Math.max(0, board.cursor | 0), board.history.length - 1);
+  board.squares = board.history[board.cursor].squares;
+  return board;
+}
+boards.forEach(ensureHistory);
+
+function newBoard(name) {
+  const squares = startPosition();
+  return {
+    id: crypto.randomUUID(),
+    name,
+    squares,
+    history: [{ squares, note: null, move: null, next: 1 }],
+    cursor: 0,
+    updated: Date.now(),
+  };
+}
+
 function touch(board) {
+  board.squares = board.history[board.cursor].squares;
   board.updated = Date.now();
   save();
-  broadcast({ type: 'board', board });
+  broadcast({ type: 'board', board: view(board) });
 }
 
 const isSquare = (n) => Number.isInteger(n) && n >= 0 && n < 64;
 const cleanName = (name) => (typeof name === 'string' ? name.trim().slice(0, 60) : '');
 
-function applyOp(board, op) {
+// Liefert die neue Stellung oder null bei ungültiger Operation
+function nextSquares(current, op) {
+  const sq = current.slice();
   switch (op.type) {
     case 'move':
-      if (!isSquare(op.from) || !isSquare(op.to)) return false;
-      if (op.from !== op.to) {
-        board.squares[op.to] = board.squares[op.from];
-        board.squares[op.from] = null;
+      if (!isSquare(op.from) || !isSquare(op.to)) return null;
+      if (op.from !== op.to && sq[op.from]) {
+        sq[op.to] = sq[op.from];
+        sq[op.from] = null;
       }
-      return true;
+      return sq;
     case 'set':
-      if (!isSquare(op.square) || !(op.piece === null || PIECES.has(op.piece))) return false;
-      board.squares[op.square] = op.piece;
-      return true;
+      if (!isSquare(op.square) || !(op.piece === null || PIECES.has(op.piece))) return null;
+      sq[op.square] = op.piece;
+      return sq;
     case 'reset':
-      board.squares = startPosition();
-      return true;
+      return startPosition();
     case 'clear':
-      board.squares = new Array(64).fill(null);
-      return true;
+      return new Array(64).fill(null);
     default:
-      return false;
+      return null;
   }
+}
+
+// Gibt false bei ungültiger Operation zurück
+function applyOp(board, op) {
+  if (op.type === 'undo') {
+    if (board.cursor > 0) board.cursor--;
+    return true;
+  }
+  if (op.type === 'redo') {
+    if (board.cursor < board.history.length - 1) board.cursor++;
+    return true;
+  }
+
+  const prev = board.history[board.cursor];
+  const squares = nextSquares(prev.squares, op);
+  if (!squares) return false;
+  if (squares.every((p, i) => p === prev.squares[i])) return true; // nichts verändert
+
+  const { note, move, merge, next } = describe(prev, op, squares);
+  const entry = { squares, note, move, next };
+  if (!note) {
+    // Kein Schachzug – kurze Beschreibung, damit klar ist, was „Zurück“ rückgängig macht
+    if (op.type === 'reset') entry.info = 'Startaufstellung';
+    else if (op.type === 'clear') entry.info = 'Brett geleert';
+    else if (op.type === 'set') entry.info = op.piece ? 'Figur hinzugefügt' : 'Figur entfernt';
+  }
+  board.history.length = board.cursor + 1; // „Vor“-Schritte verfallen bei neuem Zug
+  if (merge && board.cursor > 0) {
+    // Zweiter Teil eines Zugs (Rochade, Umwandlung, en passant): ein Zurück nimmt beides zurück
+    board.history[board.cursor] = entry;
+  } else {
+    board.history.push(entry);
+    board.cursor++;
+  }
+  if (board.history.length > HISTORY_LIMIT) {
+    const drop = board.history.length - HISTORY_LIMIT;
+    board.history.splice(0, drop);
+    board.cursor -= drop;
+  }
+  return true;
 }
 
 function readJson(req) {
@@ -142,15 +224,10 @@ async function handleApi(req, res, parts) {
     }
     if (method === 'POST') {
       const body = await readJson(req);
-      const board = {
-        id: crypto.randomUUID(),
-        name: cleanName(body.name) || 'Neues Brett',
-        squares: startPosition(),
-        updated: Date.now(),
-      };
+      const board = newBoard(cleanName(body.name) || 'Neues Brett');
       boards.push(board);
       touch(board);
-      return json(res, 201, board);
+      return json(res, 201, view(board));
     }
     return json(res, 405, { error: 'method not allowed' });
   }
@@ -159,13 +236,13 @@ async function handleApi(req, res, parts) {
   if (!board) return json(res, 404, { error: 'not found' });
 
   if (parts.length === 2) {
-    if (method === 'GET') return json(res, 200, board);
+    if (method === 'GET') return json(res, 200, view(board));
     if (method === 'PUT') {
       const name = cleanName((await readJson(req)).name);
       if (!name) return json(res, 400, { error: 'name required' });
       board.name = name;
       touch(board);
-      return json(res, 200, board);
+      return json(res, 200, view(board));
     }
     if (method === 'DELETE') {
       boards = boards.filter((b) => b !== board);
@@ -179,7 +256,7 @@ async function handleApi(req, res, parts) {
   if (parts.length === 3 && parts[2] === 'ops' && method === 'POST') {
     if (!applyOp(board, await readJson(req))) return json(res, 400, { error: 'invalid op' });
     touch(board);
-    return json(res, 200, board);
+    return json(res, 200, view(board));
   }
 
   return json(res, 404, { error: 'not found' });

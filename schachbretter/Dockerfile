@@ -1,6 +1,6 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY package.json server.js ./
+COPY package.json server.js notation.js ./
 COPY public ./public
 # /data ist in Home-Assistant-Add-ons das persistente Verzeichnis
 ENV DATA_DIR=/data PORT=8099

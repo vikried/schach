@@ -1,5 +1,5 @@
 :root {
-  --board: min(100vw - 24px, 100vh - 290px, 640px);
+  --board: min(100vw - 24px, 100vh - 340px, 640px);
   --sq: calc(var(--board) / 8);
   --bg: #f4f1ea;
   --fg: #26221c;
@@ -178,4 +178,29 @@ main.login form {
   background: color-mix(in srgb, #b3261e 10%, transparent);
   border-radius: 8px;
   padding: 8px 12px;
+}
+
+/* ---------- Letzter Zug & Zurück/Vor ---------- */
+.movebar {
+  width: var(--board);
+  margin: 10px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.movebar button { flex: none; padding: 8px 10px; white-space: nowrap; }
+.movebar button:disabled { opacity: 0.4; cursor: default; }
+.last-move {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 1.05rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.last-move strong { font-size: 1.2rem; letter-spacing: 0.01em; }
+@media (max-width: 380px) {
+  .last-move > .muted:first-child:not(:only-child) { display: none; } /* „Letzter Zug“ ausblenden, nur der Zug bleibt */
+  .movebar button { padding: 8px; }
 }
